@@ -1,0 +1,503 @@
+
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+
+		<title>Node.js internals</title>
+
+		<link rel="stylesheet" href="css/reset.css">
+		<link rel="stylesheet" href="css/reveal.css">
+		<link rel="stylesheet" href="css/theme/black.css">
+
+		<!-- Theme used for syntax highlighting of code -->
+		<link rel="stylesheet" href="lib/css/monokai.css">
+
+		<!-- Printing and PDF exports -->
+		<script>
+			var link = document.createElement( 'link' );
+			link.rel = 'stylesheet';
+			link.type = 'text/css';
+			link.href = window.location.search.match( /print-pdf/gi ) ? 'css/print/pdf.css' : 'css/print/paper.css';
+			document.getElementsByTagName( 'head' )[0].appendChild( link );
+		</script>
+	</head>
+	<body>
+		<div class="reveal">
+			<div class="slides">
+				<section>
+					<h2>Node.js Internals</h2>
+					<br>
+					<h2>Blocking I/O and the Event Loop</h2>
+				</section>
+
+				<section>
+					<h2>Agenda</h2>
+					<ul>
+						<li>Javascript</li>
+						<li>Blocking vs non-blocking</li>
+						<li>Types of asynchronous functions</li>
+						<li>The Event Loop</li>
+					</ul>
+				</section>
+
+				<section>
+					<h2>Blocking vs Non-Blocking</h2>
+				</section>
+
+				<section>
+					<p>Javascript is a single-threaded programming language</p>
+					<br>
+					<p>This means there is only one piece of code is executing at time</p>
+					<br>
+					<p>So, all other operations come to a halt until it finishes</p>
+					<br>
+					<p>These operations are called <b>Blocking</b> or <b>Synchronous</b></p>
+				</section>
+
+				<section>
+					<p>To make everything work, and avoid halting the runtime while waiting for I/O operations, JS can defer the execution of a script until their execution is demanded by the runtime</p>					
+					<br>
+					<p>These are called <b>Non-Blocking</b> or <b>Asynchronous</b></p>
+					<br>
+					<p>When running non-blocking code, the Node.js process will be able to execute additional Javascript while it waits for the operation to finish in the background</p>
+				</section>
+				
+				<section>
+						<h3>Blocking code</h3>
+						<br>
+						<p>Writing a file synchronously</p>
+						<pre class="javascript"><code data-trim data-noescape>
+							fs.writeFileSync('./test.txt', 'write this to file');
+						</code></pre>
+						<br>
+						<p>Reading a file synchronously</p>
+						<pre class="javascript"><code data-trim data-noescape>
+							const content = fs.readFileSync('./test.txt');
+						</code></pre>
+						<br>
+						<p>Parsing JSON</p>
+						<pre class="javascript"><code data-trim data-noescape>
+							const json = JSON.parse('{"key": "value""}');
+						</code></pre>
+				</section>
+
+				<section>
+					<h3>Non-Blocking code</h3>
+					<br>
+					<p>Writing a file Asynchronously</p>
+					<pre class="javascript"><code data-trim data-noescape>
+						fs.writeFile('./test.txt', 'write this to file', 
+							function doneCallback(err) {
+							console.log(err); 
+							});
+					</code></pre>
+					<br>
+					<p>Reading a file synchronously</p>
+					<pre class="javascript"><code data-trim data-noescape>
+						fs.readFile('./test.txt', 
+							function doneCallback(err, contents) {
+							console.log(contents); 
+							});
+					</code></pre>		
+				</section>
+
+				<section>
+					<h2>How those async calls work?</h2>
+				</section>
+
+				<section>
+					<p>Node.js uses libuv to handle disk and network interactions assynchornously</p>
+					<br>
+					<p>libuv is a C library that uses polling features of the OS to make asynchronous calls possible</p>
+					<img width="100" data-src="http://docs.libuv.org/en/v1.x/_static/logo.png">
+				</section>
+
+				<section>
+					<h2>Types of async operations</h2>
+					<br>
+					<p>Network and File System I/O</p>
+					<p>Timers</p>
+					<p>Next tick queue</p>
+				</section>
+
+				<section>
+					<h2>Blocking vs Non-blocking in practice</h2>
+					<br>
+					<p class="fragment" data-fragment-index="1">blocking.js</p>
+					<p class="fragment" data-fragment-index="2">non-blocking.js</p>
+					<p class="fragment" data-fragment-index="3">fibonnaci-server.js</p>
+				</section>
+
+				<section>
+					<h3>Fibonacci server</h3>
+					<br>
+					<p>Running a few requests that block the event loop</p>
+					<br>
+					<pre class="bash"><code data-trim data-noescape>
+						artillery quick -d 5 -r 1 \ 
+						  -p "{\"n\": 100000, \"async\": false}" \ 
+						  http://localhost:3000/
+					</code></pre>	
+				</section>
+
+				<section>
+					<h3>Fibonacci server</h3>
+					<br>
+					<p>And running the same requests with a implementation that doesn't block the event loop:</p>
+					<br>
+					<pre class="bash"><code data-trim data-noescape>
+						artillery quick -d 5 -r 1 \ 
+						  -p "{\"n\": 100000, \"async\": true}" \
+						  http://localhost:3000/
+					</code></pre>	
+				</section>
+
+				<section>
+					<h3>Fibonacci server</h3>
+					<div style="display: flex;">
+						<div style="flex: 50%;">
+							<pre class="none" style="font-size: small;"><code data-trim data-noescape>
+								Scenarios launched:  5
+								Scenarios completed: 5
+								Requests completed:  5
+								RPS sent: 1.12
+								Request latency:
+								  min: 89.5
+								  max: 99.2
+								  median: 94.7
+								  p95: 99.2
+								  p99: 99.2
+								Scenario counts:
+								  0: 5 (100%)
+								Codes:
+								  200: 5
+							</code></pre>
+						</div>
+						<div style="flex: 50%;">
+							<pre class="none" style="font-size: small;"><code data-trim data-noescape>
+								Scenarios launched:  5
+								Scenarios completed: 5
+								Requests completed:  5
+								RPS sent: 1.12
+								Request latency:
+								  min: 101.7
+								  max: 127.8
+								  median: 105.1
+								  p95: 127.8
+								  p99: 127.8
+								Scenario counts:
+								  0: 5 (100%)
+								Codes:
+								  200: 5
+							</code></pre>
+						</div>
+					</div>
+					<p>It doesn't look that bad</p>
+					<p>In fact, the assynchronous options seems to have worse performance</p>
+				</section>
+
+				<section>
+					<h3>Fibonacci server</h3>
+					<br>
+					<p>So, let's try to do a load test on the sync server:</p>
+					<br>
+					<pre class="bash"><code data-trim data-noescape>
+							artillery quick -d 3 -r 800 \ 
+							  -p "{\"n\": 50000, \"async\": false}" \ 
+							  http://localhost:3000/
+					</code></pre>	
+				</section>
+
+				<section>
+					<h3>Fibonacci server</h3>
+					<div style="display: flex;">
+							<div style="flex: 50%;">
+								<pre class="none" style="font-size: small;"><code data-trim data-noescape>
+									Scenarios launched:  2400
+									Scenarios completed: 1664
+									Requests completed:  1664
+									RPS sent: 28.06
+									Request latency:
+									  min: 67.1
+									  max: 78501.6
+									  median: 21674.1
+									  p95: 76854
+									  p99: 78256.4
+									Scenario counts:
+									  0: 2400 (100%)
+									Codes:
+									  200: 1664
+									Errors:
+									  ECONNRESET: 1
+									  EPIPE: 1
+									  ETIMEDOUT: 734
+								</code></pre>
+							</div>
+							<div style="flex: 50%;">
+								<pre class="none" style="font-size: small;"><code data-trim data-noescape>
+									interval took 1.005 seconds
+									interval took 1.004 seconds
+									interval took 1.001 seconds
+									interval took 1 seconds
+									interval took 2.33 seconds
+									interval took 5.115 seconds
+									interval took 3.603 seconds
+									interval took 3.353 seconds
+									interval took 3.359 seconds
+									interval took 3.4 seconds
+									interval took 3.092 seconds
+									interval took 3.238 seconds
+									interval took 3.319 seconds
+									interval took 1 seconds
+									interval took 1.001 seconds
+									interval took 1.002 seconds
+								</code></pre>
+							</div>
+						</div>
+				</section>
+
+				<section>
+					<h3>Fibonacci Server</h3>
+					<br>
+					<p>Now we started to see some of the issues with the event loop blocking:</p>
+					<ul>
+						<li>The first request took 150ms to finish, while the last one took ~40seconds.</li>
+						<li>The interval timer running in the background took up to 5 seconds to run instead of the configured 1s.</li>
+						<li>The event loop stopped responding to connection requests and some of the requests ended with a timeout</li>
+					</ul>
+				</section>
+
+				<section>
+					<h3>Fibonacci server</h3>
+					<br>
+					<p>Then, what if we run the same load test on the async server?</p>
+					<br>
+					<pre class="bash"><code data-trim data-noescape>
+							artillery quick -d 3 -r 800 \ 
+							  -p "{\"n\": 50000, \"async\": true}" \ 
+							  http://localhost:3000/
+					</code></pre>
+				</section>
+
+				<section>
+					<h3>Fibonacci server</h3>
+					<div style="display: flex;">
+							<div style="flex: 50%;">
+								<pre class="none" style="font-size: small;"><code data-trim data-noescape>
+									Scenarios launched:  2400
+									Scenarios completed: 2400
+									Requests completed:  2400
+									RPS sent: 36.8
+									Request latency:
+									  min: 11666.9
+									  max: 61986
+									  median: 60635.6
+									  p95: 61941.1
+									  p99: 61975
+									Scenario counts:
+									  0: 2400 (100%)
+									Codes:
+									  200: 2400
+								</code></pre>
+							</div>
+							<div style="flex: 50%;">
+								<pre class="none" style="font-size: small;"><code data-trim data-noescape>
+									interval took 1.002 seconds
+									interval took 1.064 seconds
+									interval took 1.013 seconds
+									interval took 1.066 seconds
+									interval took 1.02 seconds
+									interval took 1.055 seconds
+									interval took 1.002 seconds
+									interval took 1.009 seconds
+								</code></pre>
+							</div>
+						</div>
+					<p>No request failed and the average latency improved a lot</p>
+					<p>But, like the first test, the min latency is still quite high compared to the sync server</p>
+				</section>
+
+				<section>
+					<p>Blocking code execution drastically reduces the overall performance of the application and event loop execution.</p>
+					<br>
+					<p>With non-blocking calls the reliability of the server is better, but performance still isn't good if you are doing cpu intensive tasks</p>
+					<br>
+					<p><b>Node.js strenght is on handling async calls without cpu intesive tasks</b></p>
+				</section>
+				
+				<section>
+						<h2>Blocking vs Non-blocking in practice</h2>
+						<br>
+						<p>blocking.js</p>
+						<p>non-blocking.js</p>
+						<p>fibonnaci-server.js</p>
+						<p class="fragment" data-fragment-index="1">timers.js</p>
+					</section>
+
+					<section>
+						<h3>Timers</h3>
+						<p>Timers are global functions used to execute code after a set period of time</p>
+					</section>
+
+					<section>
+						<h3>Timers</h3>
+						<ul style="font-size: smaller;">
+							<li><in-code>setImmediate(callback)</in-code>: execute callback on the next event loop iteration</li>
+							<li><in-code>setTimeout(callback, time)</in-code>: execute callback after <in-code>time</in-code> miliseconds</li>
+							<li><in-code>setInterval(callback, time)</in-code>: execute callback an infinite amount of times after <in-code>time</in-code> miliseconds</li>
+							<li><in-code>process.nextTick(callback)</in-code>: not technically a timer, but also a way of scheduling a function execution in the future</li>
+						</ul>
+					</section>
+
+					<section>
+						<h3>Timers in practice</h3>
+						<br>
+						<pre class="javascript" style="font-size: 50%;"><code data-trim data-noescape>
+							2019-05-29T19:31:06.950Z next tick
+							2019-05-29T19:31:06.958Z zero timeout
+							2019-05-29T19:31:06.958Z immediate
+							2019-05-29T19:31:07.954Z interval
+							2019-05-29T19:31:07.954Z 1s timeout
+							2019-05-29T19:31:07.955Z block interval start
+							2019-05-29T19:31:12.723Z block interval end
+							2019-05-29T19:31:13.727Z interval
+							2019-05-29T19:31:13.730Z block interval start
+							2019-05-29T19:31:32.643Z block interval end
+							2019-05-29T19:31:33.646Z interval
+							2019-05-29T19:31:33.646Z block interval start
+						</code></pre>
+					</section>
+
+					<section>
+						<h3>Timers</h3>
+						<p><in-code>process.nextTick</in-code> is always executed first</p>
+						<p>A zero wait <in-code>setTimeout</in-code> is not the same as <in-code>setImmediate</in-code> - <in-code>setImmediate</in-code> is executed first</p>
+						<p>The wait time is never exact</p>
+						<p>Blocking the event loop blocks delays the execution of timers</p>
+						<p>The 1s interval timer only got scheduled after the blocking interval ended</p>
+					</section>
+
+					<section>
+						<p>Why?</p>
+						<br>
+						<p>Because of how the event loop executes!</p>
+					</section>
+
+					<section>
+						<h2>The Event Loop</h2>
+					</section>
+
+					<section>
+						<q>The event loop is what allows Node.js to perform non-blocking I/O operations — despite the fact that JavaScript is single-threaded — by offloading operations to the system kernel whenever possible.</q>
+					</section>
+
+					<section>
+						<h3>Event Loop Phases</h3>
+						<img data-src="./img/eventloop.png" width="500">
+					</section>
+
+					<section>
+						<h3>Event Loop Phases</h3>
+						<br>
+						<p>Each phase has a FIFO queue of callbacks</p>
+						<p>Callbacks are executed until the queue is exausted or the maximum number of callbacks is achieved</p>
+					</section>
+
+					<section>
+						<h3>Timers phase</h3>
+						<br>
+						<p>Executes callbacks scheduled by <in-code>setTimeout()</in-code> and <in-code>setInterval()</in-code></p>
+					</section>
+
+					<section>
+						<h3>Pending Callbacks phase</h3>
+						<br>
+						<p>Executes callbacks for some system operations that are delayed, such as type of TCP errors</p>
+					</section>
+
+					<section>
+						<h3>Poll phase</h3>
+						<br>
+						<p>Process events in poll queue</p>
+						<p>Calculate if needs to block for I/O</p>
+						<p>Check for timers and wrap back to Timers or go to Check phases</p>
+					</section>
+
+					<section>
+						<h3>Check phase</h3>
+						<br>
+						<p>'Do this before any new stuff' phase</p>
+						<p>Executes callbacks for <in-code>setImmediate()</in-code></p>
+					</section>
+
+					<section>
+						<h3>Close Callbacks phase</h3>
+						<br>
+						<p>If a socket or handle is closed abruptly (e.g. socket.destroy()), the 'close' event will be emitted here</p>
+					</section>
+
+					<section>
+						<h3>process.nextTick()</h3>
+						<br>
+						<p>Not technically part of the event loop</p>
+						<p>The next tick queue is processed after the current operation ends</p>
+						<p>All callbacks from the next tick queue are executed before the event loop continues</p>
+						<p>It is dangerous in a way it can starve Node.js when called recursively</p>
+					</section>
+
+					<section>
+						<h3>process.nextTick()</h3>
+						<br>
+						<p>Allow users to handle errors, cleanup any then unneeded resources, or perhaps try the request again before the event loop continues</p>
+						<p>Allow a callback to run after the call stack has unwound but before the event loop continues</p>
+						<pre class="javascript" style="font-size: 40%;"><code data-trim data-noescape>
+							// this finishes immediately
+							const server = net.createServer(() => {}).listen(8080);
+
+							// if the listen call doesn't wait to emit the events
+							// the listening callback wouldn't be registered yet 
+							server.on('listening', () => {});
+						</code></pre>
+					</section>
+
+					<section>
+						<h2>Questions?</h2>
+					</section>
+
+					<section>
+						<h3>Resources</h3>
+						<a href="https://nodejs.org/en/docs/guides/#node-js-core-concepts">Node.js core concepts guides</a>
+						<a href="https://nodejs.org/api/cluster.html">Node.js Clusters</a>
+						<a href="https://nodejs.org/api/worker_threads.html">Node.js Workers</a>
+					</section>
+			</div>
+		</div>
+
+		<script src="js/reveal.min.js"></script>
+
+		<script>
+			// More info about config & dependencies:
+			// - https://github.com/hakimel/reveal.js#configuration
+			// - https://github.com/hakimel/reveal.js#dependencies
+			Reveal.initialize({
+				dependencies: [
+					{ src: 'plugin/markdown/marked.js' },
+					{ src: 'plugin/markdown/markdown.js' },
+					{ src: 'plugin/notes/notes.js', async: true },
+					{ src: 'plugin/highlight/highlight.js', async: true }
+				]
+			});
+		</script>
+	<script src="//0.0.0.0:35729/livereload.js?snipver=1" async="" defer=""></script></body>
+
+	<style>
+		in-code {
+			background-color: rgb(62, 62, 62);
+			border-radius: 3px;
+			font-family: courier, monospace;
+			padding: 0 3px;
+		}
+	</style>
+</html>
