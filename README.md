@@ -1,5 +1,6 @@
 # Node.js Internals: I/O and the Event Loop
 
+[Link to presentation](https://mwebler.github.io/nodejs-internals-examples/)
 
 - Quick intro to Blocking vs non-blocking and libuv
 - How asynchronous code is executed: the Event Loop
